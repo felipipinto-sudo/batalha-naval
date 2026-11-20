@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Batalha Naval — Duelo na rede</title>
+<style>
+:root{--navy:#12344d;--blue:#1d6284;--line:#a9c2d1;--sea:#d2e3eb;--sea2:#bdd3df;--red:#d98272;--green:#4c9677}
+*{box-sizing:border-box}body{margin:0;background:#eef3f6;color:var(--navy);font-family:Georgia,serif;padding:24px}
+main{max-width:1100px;margin:auto}h1{font-size:clamp(27px,4vw,38px);margin:0 0 18px}
+.panel{background:white;border:1px solid var(--line);border-radius:12px;padding:17px;margin-bottom:16px}
+button,input{font:inherit;border:1px solid var(--blue);border-radius:7px;padding:10px 13px;background:white;color:var(--navy)}
+button{cursor:pointer}button.primary{background:var(--blue);color:white}button:disabled{opacity:.45;cursor:not-allowed}
+input{max-width:180px} .row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}.muted{color:#55758a}.hidden{display:none!important}
+#fleet{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}.ship{padding:7px 10px;border:1px solid var(--line);border-radius:6px;cursor:pointer}.ship.active{background:var(--blue);color:white}
+.boards{display:flex;gap:28px;flex-wrap:wrap}.board-wrap h2{font-size:20px}.board{display:grid;grid-template-columns:34px repeat(10,minmax(25px,40px));grid-template-rows:28px repeat(10,minmax(25px,40px));width:max-content;border-top:1px solid var(--line);border-left:1px solid var(--line)}
+.cell,.axis{border-right:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:12px}
+.cell{background:var(--sea);cursor:pointer}.cell:nth-child(odd){background:var(--sea2)}.cell.shipcell{background:#668fa5}.cell.hit{background:var(--red);color:#fff}.cell.miss{background:#fff;color:#789}.cell.sunk{background:#9b5550;color:white}.axis{background:white}
+.status{font-weight:bold;margin-top:8px}.small{font-size:14px}
+@media(max-width:520px){body{padding:12px}.board{grid-template-columns:26px repeat(10,minmax(23px,1fr));grid-template-rows:24px repeat(10,minmax(23px,1fr));width:100%;max-width:390px}.cell{font-size:10px}}
+</style></head>
+<body><main>
+<h1>⚓ Batalha Naval</h1>
+<section class="panel" id="connection">
+<h2>Entrar na partida</h2><p class="muted">Os dois computadores precisam estar conectados à mesma rede cabeada.</p>
+<div class="row"><label>Seu nome <input id="name" value="Jogador 1"></label><label>Código da sala <input id="code" value="NAVAL01" maxlength="8"></label><button class="primary" id="join">Conectar à sala</button></div>
+<div id="connStatus" class="status">Aguardando conexão…</div>
+</section>
+<section class="panel hidden" id="setup">
+<h2 id="setupTitle">Posicione sua frota</h2><div id="fleet"></div>
+<p id="instruction">Escolha uma embarcação e clique no tabuleiro para posicionar.</p>
+<div class="row"><button id="rotate">Girar: horizontal</button><button id="random">Sortear tudo</button><button id="clear">Limpar</button><button class="primary" id="ready" disabled>Confirmar frota</button></div>
+</section>
+<section class="panel hidden" id="game">
+<h2 id="gameTitle">Batalha em andamento</h2><div class="status" id="turnStatus"></div>
+<div class="boards"><div class="board-wrap"><h2>Sua frota</h2><div id="ownBoard" class="board"></div></div><div class="board-wrap"><h2>Tabuleiro adversário</h2><div id="enemyBoard" class="board"></div></div></div>
+<p class="muted small">No seu turno, clique em uma casa do tabuleiro adversário. Vermelho = acerto; branco = água.</p>
+</section>
+</main>
+<script>
+const ships=[["Porta-aviões",5],["Encouraçado",4],["Cruzador",3],["Submarino",3],["Destroyer",2],["Patrulha",2]];
+let ws,player=-1,names=[],fleet=[],selected=0,horizontal=true,ready=false,turn=-1,shots=[],enemyShots=[],started=false;
+const $=id=>document.getElementById(id);
+function connect(){
+ const code=$("code").value.trim().toUpperCase(),name=$("name").value.trim();
+ if(!code||!name)return alert("Informe nome e código da sala.");
+ const proto=location.protocol==="https:"?"wss":"ws"; ws=new WebSocket(`${proto}://${location.host}`);
+ $("connStatus").textContent="Conectando ao servidor…";
+ ws.onopen=()=>{ws.send(JSON.stringify({type:"join",code,name}));setInterval(()=>{if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:"keepalive"}));},25000);};
+ ws.onmessage=e=>message(JSON.parse(e.data));
+ ws.onclose=()=>{$("connStatus").textContent="Conexão encerrada. Atualize a página para tentar novamente.";};
+ ws.onerror=()=>{$("connStatus").textContent="Não foi possível conectar ao servidor.";};
+}
+$("join").onclick=connect;
+function message(m){
+ if(m.type==="error"){alert(m.message);return}
+ if(m.type==="joined"){player=m.player;names=m.names;$("connStatus").textContent=`Conectado como ${$("name").value}. ${player===0?"Você é o Jogador 1.":"Você é o Jogador 2."} Compartilhe o código ${$("code").value.toUpperCase()}.`; $("connection").classList.add("hidden");$("setup").classList.remove("hidden");$("setupTitle").textContent=`Jogador ${player+1}: posicione a frota`;initSetup();}
+ if(m.type==="room_ready"){names=m.names;$("instruction").textContent="Os dois jogadores estão na sala. Posicione sua frota e confirme.";}
+ if(m.type==="waiting_ready")$("instruction").textContent="Frota confirmada. Aguardando sua adversária…";
+ if(m.type==="start"){started=true;turn=m.first;$("setup").classList.add("hidden");$("game").classList.remove("hidden");$("gameTitle").textContent=`${names[0]} × ${names[1]}`;renderGame();updateTurn();}
+ if(m.type==="turn"){turn=m.player;updateTurn();}
+ if(m.type==="game_over"){turn=-1;$("turnStatus").textContent=m.winner===player?"🏆 Você venceu!":"Sua frota foi destruída. A adversária venceu.";}
+ if(m.type==="opponent_action"){const a=m.action;enemyShots.push(a);renderOwn();checkLoss();}
+ if(m.type==="attack_result"){const s=shots.find(x=>x.r===m.r&&x.c===m.c);if(s){s.hit=m.hit;const d=cell($("enemyBoard"),m.r,m.c);d.classList.remove("miss");d.classList.add(m.hit?"hit":"miss");d.textContent=m.hit?"×":"•";}checkWin();}
+ if(m.type==="opponent_left")$("turnStatus").textContent="A outra pessoa saiu da sala.";
+ if(m.type==="restart")location.reload();
+}
+function initSetup(){fleet=[];renderFleet();renderSetupBoard();}
+function renderFleet(){ $("fleet").innerHTML="";ships.forEach((s,i)=>{let b=document.createElement("button");b.className="ship"+(selected===i?" active":"");b.textContent=`${s[0]} (${s[1]})`;b.onclick=()=>{selected=i;renderFleet()};$("fleet").append(b);});}
+function renderSetupBoard(){
+ const el=$("ownBoard");el.innerHTML="";buildGrid(el,(r,c)=>place(r,c));
+}
+function buildGrid(el,click){
+ el.append(axis(""));
+ for(let c=1;c<=10;c++)el.append(axis(c));
+ for(let r=0;r<10;r++){el.append(axis("ABCDEFGHIJ"[r]));for(let c=0;c<10;c++){let d=document.createElement("div");d.className="cell";d.dataset.r=r;d.dataset.c=c;if(click)d.onclick=()=>click(r,c);el.append(d);}}
+}
+function axis(t){let d=document.createElement("div");d.className="axis";d.textContent=t;return d}
+function canPlace(r,c,len,h){for(let i=0;i<len;i++){let y=r+(h?0:i),x=c+(h?i:0);if(y>9||x>9||fleet.some(s=>s.cells.some(p=>p[0]===y&&p[1]===x)))return false;}return true}
+function place(r,c){if(ready)return;let len=ships[selected][1];if(!canPlace(r,c,len,horizontal)){ $("instruction").textContent="Não cabe aqui ou sobrepõe outra embarcação.";return;}
+ fleet.push({name:ships[selected][0],cells:Array.from({length:len},(_,i)=>[r+(horizontal?0:i),c+(horizontal?i:0)])});
+ selected=ships.findIndex((s,i)=>!fleet.some(f=>f.name===s[0]));if(selected<0)selected=5;renderFleet();renderSetupBoard();fleet.forEach(s=>s.cells.forEach(([y,x])=>cell($("ownBoard"),y,x).classList.add("shipcell")));$("ready").disabled=fleet.length!==ships.length;$("instruction").textContent=`Embarcações posicionadas: ${fleet.length}/${ships.length}.`;
+}
+function cell(board,r,c){return board.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`)}
+$("rotate").onclick=()=>{horizontal=!horizontal;$("rotate").textContent="Girar: "+(horizontal?"horizontal":"vertical")};
+$("clear").onclick=()=>{if(ready)return;fleet=[];selected=0;renderFleet();renderSetupBoard();$("ready").disabled=true;$("instruction").textContent="Frota limpa. Posicione novamente."};
+$("random").onclick=()=>{if(ready)return;for(let tries=0;tries<500;tries++){fleet=[];let ok=true;for(const [name,len] of ships){let placed=false;for(let j=0;j<300;j++){let r=Math.floor(Math.random()*10),c=Math.floor(Math.random()*10),h=Math.random()<.5;if(canPlace(r,c,len,h)){fleet.push({name,cells:Array.from({length:len},(_,i)=>[r+(h?0:i),c+(h?i:0)])});placed=true;break;}}if(!placed){ok=false;break;}}if(ok)break;}selected=0;renderFleet();renderSetupBoard();fleet.forEach(s=>s.cells.forEach(([r,c])=>cell($("ownBoard"),r,c).classList.add("shipcell")));$("ready").disabled=fleet.length!==ships.length;$("instruction").textContent="Frota sorteada. Confirme quando estiver pronta."};
+$("ready").onclick=()=>{if(fleet.length!==ships.length)return;ready=true;$("ready").disabled=true;$("instruction").textContent="Frota confirmada. Aguardando a outra pessoa…";ws.send(JSON.stringify({type:"fleet",cells:fleet.flatMap(s=>s.cells)}));ws.send(JSON.stringify({type:"ready"}));};
+function renderGame(){
+ buildGrid($("ownBoard"),null);buildGrid($("enemyBoard"),(r,c)=>attack(r,c));
+ fleet.forEach(s=>s.cells.forEach(([r,c])=>cell($("ownBoard"),r,c).classList.add("shipcell")));
+}
+function updateTurn(){$("turnStatus").textContent=turn===player?"É sua vez de atacar!":"Aguardando o ataque da adversária…";$("enemyBoard").style.pointerEvents=turn===player?"auto":"none";$("enemyBoard").style.opacity=turn===player?"1":".65";}
+function attack(r,c){if(turn!==player||shots.some(s=>s.r===r&&s.c===c))return;shots.push({r,c});ws.send(JSON.stringify({type:"action",action:{r,c}}));}
+function checkWin(){if(shots.filter(s=>s.hit).length===19){$("turnStatus").textContent="🏆 Você venceu! Toda a frota adversária foi destruída.";turn=-1;}}
+function checkLoss(){if(enemyShots.filter(s=>s.hit).length===19){$("turnStatus").textContent="Sua frota foi destruída. A adversária venceu.";turn=-1;}}
+function renderOwn(){const last=enemyShots[enemyShots.length-1];if(!last)return;let hit=fleet.some(s=>s.cells.some(([r,c])=>r===last.r&&c===last.c));const d=cell($("ownBoard"),last.r,last.c);d.classList.remove("shipcell");d.classList.add(hit?"hit":"miss");d.textContent=hit?"×":"•";}
+</script></body></html>

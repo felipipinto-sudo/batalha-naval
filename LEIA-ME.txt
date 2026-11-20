@@ -1,0 +1,26 @@
+BATALHA NAVAL — DOIS PCS NA MESMA REDE
+
+REQUISITOS
+- Windows 10/11
+- Node.js LTS instalado no computador que vai hospedar a partida
+- Os dois computadores conectados à mesma rede cabeada (mesmo roteador/switch)
+
+COMO INICIAR
+1. Extraia a pasta batalha_naval_lan.
+2. No computador que será o servidor, abra a pasta.
+3. Clique na barra de endereço do Explorador, digite cmd e pressione Enter.
+4. Execute: npm start
+5. Se o Windows perguntar sobre o Firewall, permita acesso em redes privadas.
+6. No computador servidor, abra http://localhost:3000
+7. Descubra o IPv4 do computador servidor: abra outro Prompt e execute ipconfig.
+   Procure "Endereço IPv4" do adaptador Ethernet (ex.: 192.168.1.25).
+8. No segundo computador, abra http://IP-DO-SERVIDOR:3000
+   Exemplo: http://192.168.1.25:3000
+9. Ambos usem o mesmo código de sala (ex.: NAVAL01), mas nomes diferentes.
+10. Posicionem as frotas e confirmem. O jogo começa quando ambos confirmarem.
+
+OBSERVAÇÕES
+- Não precisa instalar nada no segundo computador.
+- Não é necessário internet; basta a rede local permitir comunicação entre os PCs.
+- O servidor precisa ficar aberto durante a partida.
+- Esta é uma versão inicial funcional para partida local. O placar de acertos/erros é mostrado nos tabuleiros.

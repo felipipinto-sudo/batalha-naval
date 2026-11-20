@@ -1,0 +1,24 @@
+PUBLICAR ONLINE (Render)
+
+Este projeto já está configurado para receber a porta definida pela hospedagem.
+
+1. Crie uma conta em https://github.com/ (se ainda não tiver).
+2. Crie um repositório novo, por exemplo: batalha-naval.
+3. Envie para esse repositório os arquivos server.js, package.json e a pasta public.
+   (Não envie a pasta externa do ZIP; envie os arquivos de dentro dela.)
+4. Crie uma conta em https://render.com/ e conecte ao GitHub.
+5. No Render, escolha New > Web Service e selecione o repositório batalha-naval.
+6. Configure:
+   - Runtime/Language: Node
+   - Build Command: npm install
+   - Start Command: npm start
+   - Instance Type: Free (para teste)
+7. Clique em Create Web Service e aguarde o deploy.
+8. O Render fornecerá um endereço https://NOME.onrender.com.
+   Compartilhe esse mesmo endereço com sua amiga.
+
+IMPORTANTE
+- O serviço gratuito pode dormir após 15 minutos sem tráfego e levar cerca de 1 minuto para voltar.
+- Para uma partida casual, abra o link nos dois PCs e crie a mesma sala.
+- O jogo guarda as salas na memória do servidor; se o serviço reiniciar, a partida em andamento será perdida.
+- Não compartilhe senhas nem tokens. Não é necessário informar dados de pagamento para seguir o tutorial gratuito do Render.
